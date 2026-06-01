@@ -383,6 +383,12 @@ select:focus {
   align-items: baseline;
   gap: 10px;
   padding: 12px 14px 4px;
+  cursor: grab;
+  user-select: none;
+}
+
+.project-frame-header:active {
+  cursor: grabbing;
 }
 
 .project-frame-header strong {

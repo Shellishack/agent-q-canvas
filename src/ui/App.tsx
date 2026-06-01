@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Background,
   Controls,
@@ -59,6 +59,7 @@ function createProjectNode(id: string, label: string, position: { x: number; y: 
     height: 520,
     selectable: true,
     draggable: true,
+    dragHandle: '.project-drag-handle',
     data: {
       label,
       path: '',
@@ -124,6 +125,11 @@ export function App() {
   const [navigatorOpen, setNavigatorOpen] = useState(false);
   const [notice, setNotice] = useState('Right-click the canvas to create a project group.');
   const [flow, setFlow] = useState<ReactFlowInstance<CanvasNode, any> | null>(null);
+  const projectDragSnapshot = useRef<{
+    projectId: string;
+    origin: { x: number; y: number };
+    positions: Map<string, { x: number; y: number }>;
+  } | null>(null);
 
   const activeCanvas = canvases.find((canvas) => canvas.id === activeCanvasId) ?? canvases[0];
   const nodes = activeCanvas.nodes;
@@ -190,6 +196,58 @@ export function App() {
     },
     [activeCanvasId]
   );
+
+  const onNodeDragStart = useCallback(
+    (_event: React.MouseEvent, node: CanvasNode) => {
+      if (node.type !== 'project') {
+        projectDragSnapshot.current = null;
+        return;
+      }
+
+      projectDragSnapshot.current = {
+        projectId: node.id,
+        origin: { ...node.position },
+        positions: new Map(
+          nodes
+            .filter((candidate) => candidate.id === node.id || (candidate.type === 'agent' && candidate.data.projectId === node.id))
+            .map((candidate) => [candidate.id, { ...candidate.position }])
+        )
+      };
+    },
+    [nodes]
+  );
+
+  const onNodeDrag = useCallback(
+    (_event: React.MouseEvent, node: CanvasNode) => {
+      const snapshot = projectDragSnapshot.current;
+      if (!snapshot || node.type !== 'project' || node.id !== snapshot.projectId) {
+        return;
+      }
+
+      const dx = node.position.x - snapshot.origin.x;
+      const dy = node.position.y - snapshot.origin.y;
+
+      updateActiveCanvas((canvas) => ({
+        ...canvas,
+        nodes: canvas.nodes.map((candidate) => {
+          const initialPosition = snapshot.positions.get(candidate.id);
+          if (!initialPosition) return candidate;
+          return {
+            ...candidate,
+            position: {
+              x: initialPosition.x + dx,
+              y: initialPosition.y + dy
+            }
+          };
+        })
+      }));
+    },
+    [activeCanvasId]
+  );
+
+  const onNodeDragStop = useCallback(() => {
+    projectDragSnapshot.current = null;
+  }, []);
 
   const addCanvas = () => {
     const id = `canvas-${nanoid(6)}`;
@@ -529,6 +587,9 @@ export function App() {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onNodeDragStart={onNodeDragStart}
+            onNodeDrag={onNodeDrag}
+            onNodeDragStop={onNodeDragStop}
             onPaneContextMenu={(event) => {
               event.preventDefault();
               if (!flow) return;
