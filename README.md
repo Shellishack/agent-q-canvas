@@ -4,6 +4,14 @@ Agent Q Canvas is an Electron app for coordinating local coding agents on a spat
 
 The core idea is simple: a user can work across multiple canvases, group work by project, place local agent nodes inside each project group, and queue tasks to those agents without losing the larger map of what is happening.
 
+## Screenshots
+
+![Agent Q Canvas overview](assets/agent-q-canvas-overview.webp)
+
+![Agent Q Canvas preview panel](assets/agent-q-canvas-preview-panel.webp)
+
+![Agent Q Canvas compact view](assets/agent-q-canvas-compact.webp)
+
 ## Current Features
 
 - Electron + React + TypeScript desktop app
