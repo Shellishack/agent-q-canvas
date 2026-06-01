@@ -206,6 +206,11 @@ select:focus {
   overflow-y: auto;
 }
 
+.visible-project-list {
+  max-height: 210px;
+  overflow-y: auto;
+}
+
 .project-button {
   display: grid;
   grid-template-columns: 10px minmax(0, 1fr);
@@ -349,8 +354,17 @@ select:focus {
   font-size: 12px;
 }
 
-.topbar-pill {
+.topbar-actions,
+.topbar-pill,
+.topbar-button {
   flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.topbar-pill,
+.topbar-button {
   padding: 8px 10px;
   border-radius: 999px;
   background: #12211b;
@@ -358,11 +372,143 @@ select:focus {
   font-weight: 600;
 }
 
+.topbar-button {
+  background: #24313a;
+  color: #eaf2f8;
+}
+
 .react-flow {
   height: 100%;
   background:
     radial-gradient(circle at 35% 12%, rgba(114, 208, 165, 0.09), transparent 28%),
     #101214;
+}
+
+.preview-panel {
+  position: absolute;
+  z-index: 6;
+  top: 76px;
+  right: 16px;
+  bottom: 16px;
+  width: min(420px, calc(100vw - 360px));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #2c333b;
+  border-radius: 8px;
+  background: rgba(20, 24, 29, 0.96);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(10px);
+}
+
+.preview-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.preview-panel header strong,
+.preview-panel header span {
+  display: block;
+}
+
+.preview-panel header span {
+  margin-top: 3px;
+  color: #9ba7b4;
+  font-size: 12px;
+}
+
+.preview-panel header button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 7px;
+  background: #252c34;
+  color: #d7dee6;
+}
+
+.preview-surface {
+  min-height: 240px;
+  border: 1px solid #303842;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0f1419;
+}
+
+.preview-browser-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 10px;
+  border-bottom: 1px solid #303842;
+  background: #151b21;
+}
+
+.preview-browser-bar span {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #54606d;
+}
+
+.preview-browser-bar small {
+  margin-left: 6px;
+  color: #9ba7b4;
+}
+
+.preview-placeholder {
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  min-height: 206px;
+  padding: 22px;
+  text-align: center;
+}
+
+.preview-placeholder strong {
+  color: #f8fafc;
+}
+
+.preview-placeholder p {
+  max-width: 290px;
+  margin: 0;
+  color: #9ba7b4;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.preview-section {
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.preview-section h2 {
+  margin: 0;
+  color: #cbd5df;
+  font-size: 13px;
+}
+
+.preview-section button {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 38px;
+  padding: 9px 10px;
+  border-radius: 7px;
+  background: #11161b;
+  color: #dce5ed;
+  text-align: left;
+}
+
+.preview-section small {
+  color: #8d99a7;
 }
 
 .project-frame {

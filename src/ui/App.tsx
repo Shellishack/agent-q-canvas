@@ -14,7 +14,7 @@ import {
   type OnInit,
   type ReactFlowInstance
 } from '@xyflow/react';
-import { Bot, ChevronDown, FolderKanban, GitBranch, Mic, Plus, SendHorizontal, Sparkles } from 'lucide-react';
+import { Bot, ChevronDown, Eye, FolderKanban, GitBranch, Mic, Plus, SendHorizontal, Sparkles, X } from 'lucide-react';
 import { nanoid } from 'nanoid';
 import { decomposeCommand } from '../lib/planner';
 import type {
@@ -123,6 +123,8 @@ export function App() {
   const [selectedAgentId, setSelectedAgentId] = useState<string>('auto');
   const [commandScope, setCommandScope] = useState<'canvas' | 'project'>('canvas');
   const [navigatorOpen, setNavigatorOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewProjectId, setPreviewProjectId] = useState<string | null>(null);
   const [notice, setNotice] = useState('Right-click the canvas to create a project group.');
   const [flow, setFlow] = useState<ReactFlowInstance<CanvasNode, any> | null>(null);
   const projectDragSnapshot = useRef<{
@@ -137,6 +139,8 @@ export function App() {
   const agents = nodes.filter((node): node is AgentFlowNode => node.type === 'agent');
   const projects = nodes.filter((node): node is ProjectFlowNode => node.type === 'project');
   const selectedProjectId = selectedAgentId === 'auto' ? projects[0]?.id : agents.find((agent) => agent.id === selectedAgentId)?.data.projectId;
+  const previewProject = projects.find((project) => project.id === (previewProjectId ?? selectedProjectId)) ?? projects[0];
+  const previewAgents = previewProject ? agents.filter((agent) => agent.data.projectId === previewProject.id) : agents;
 
   useEffect(() => {
     const unsubscribeOutput = window.agentQ?.agent.onOutput((event) => {
@@ -447,7 +451,7 @@ export function App() {
   };
 
   const focusProject = (project: ProjectFlowNode) => {
-    setNavigatorOpen(false);
+    setPreviewProjectId(project.id);
     setTimeout(() => {
       flow?.setCenter(project.position.x + 380, project.position.y + 260, { zoom: 0.85, duration: 500 });
     }, 0);
@@ -500,6 +504,28 @@ export function App() {
               <SendHorizontal size={17} />
               Send
             </button>
+          </div>
+        </section>
+
+        <section className="panel slim-panel">
+          <div className="panel-title">
+            <FolderKanban size={16} />
+            Projects
+          </div>
+          <div className="project-list visible-project-list">
+            {projects.map((project) => {
+              const projectAgents = agents.filter((agent) => agent.data.projectId === project.id);
+              const openTasks = projectAgents.reduce((sum, agent) => sum + agent.data.tasks.filter((task) => task.status !== 'done').length, 0);
+              return (
+                <button key={project.id} type="button" className="project-button" onClick={() => focusProject(project)}>
+                  <span className="project-color" style={{ background: project.data.color }} />
+                  <span>
+                    <strong>{project.data.label}</strong>
+                    <small>{projectAgents.length} agents · {openTasks} open</small>
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </section>
 
@@ -572,9 +598,15 @@ export function App() {
             <strong>{activeCanvas.name}</strong>
             <span>{notice}</span>
           </div>
-          <div className="topbar-pill">
-            <GitBranch size={15} />
-            right-click creates projects
+          <div className="topbar-actions">
+            <button type="button" className="topbar-button" onClick={() => setPreviewOpen((open) => !open)}>
+              <Eye size={15} />
+              Preview
+            </button>
+            <div className="topbar-pill">
+              <GitBranch size={15} />
+              right-click creates projects
+            </div>
           </div>
         </div>
         <AgentActionsContext.Provider value={{ runNextTask, sendDirectTask, updateAgent, setTaskStatus }}>
@@ -604,6 +636,40 @@ export function App() {
             <Controls />
           </ReactFlow>
         </AgentActionsContext.Provider>
+        {previewOpen ? (
+          <aside className="preview-panel">
+            <header>
+              <div>
+                <strong>Preview</strong>
+                <span>{previewProject?.data.label ?? activeCanvas.name}</span>
+              </div>
+              <button type="button" onClick={() => setPreviewOpen(false)} title="Close preview">
+                <X size={16} />
+              </button>
+            </header>
+            <div className="preview-surface">
+              <div className="preview-browser-bar">
+                <span />
+                <span />
+                <span />
+                <small>project preview</small>
+              </div>
+              <div className="preview-placeholder">
+                <strong>{previewProject?.data.label ?? 'Canvas preview'}</strong>
+                <p>{previewProject?.data.summary ?? 'Select a project to inspect local agent output and future browser previews.'}</p>
+              </div>
+            </div>
+            <section className="preview-section">
+              <h2>Agents</h2>
+              {previewAgents.map((agent) => (
+                <button key={agent.id} type="button" onClick={() => setSelectedAgentId(agent.id)}>
+                  <span>{agent.data.label}</span>
+                  <small>{agent.data.status} · {agent.data.tasks.filter((task) => task.status !== 'done').length} open</small>
+                </button>
+              ))}
+            </section>
+          </aside>
+        ) : null}
       </main>
     </div>
   );
