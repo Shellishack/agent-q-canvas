@@ -19,6 +19,7 @@ export type AgentNodeData = {
   status: AgentStatus;
   command: string;
   cwd: string;
+  projectId?: string;
   activeTaskId?: string;
   tasks: AgentTask[];
   transcript: string[];
@@ -27,6 +28,17 @@ export type AgentNodeData = {
 
 export type AgentFlowNode = import('@xyflow/react').Node<AgentNodeData, 'agent'>;
 
+export type ProjectNodeData = {
+  label: string;
+  path: string;
+  color: string;
+  summary: string;
+};
+
+export type ProjectFlowNode = import('@xyflow/react').Node<ProjectNodeData, 'project'>;
+
+export type CanvasNode = AgentFlowNode | ProjectFlowNode;
+
 export type ProjectWorkspace = {
   id: string;
   name: string;
@@ -34,6 +46,13 @@ export type ProjectWorkspace = {
   color: string;
   summary: string;
   nodes: AgentFlowNode[];
+  edges: import('@xyflow/react').Edge[];
+};
+
+export type AgentCanvas = {
+  id: string;
+  name: string;
+  nodes: CanvasNode[];
   edges: import('@xyflow/react').Edge[];
 };
 
