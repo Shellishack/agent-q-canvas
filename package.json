@@ -1,0 +1,40 @@
+{
+  "name": "agent-q-canvas",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Electron canvas for coordinating local coding agents and task queues.",
+  "type": "module",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "concurrently -k -n renderer,main,electron -c cyan,magenta,green \"npm:dev:renderer\" \"npm:dev:main\" \"npm:dev:electron\"",
+    "dev:renderer": "vite",
+    "dev:main": "tsc -p electron/tsconfig.json --watch --preserveWatchOutput",
+    "dev:electron": "wait-on tcp:6060 dist-electron/main.js && electron .",
+    "start": "npm run build && electron .",
+    "start:electron": "electron .",
+    "build": "npm run build:renderer && npm run build:main",
+    "build:renderer": "tsc -p tsconfig.app.json && vite build",
+    "build:main": "tsc -p electron/tsconfig.json",
+    "web-build": "npm run build:renderer",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^5.0.0",
+    "@xyflow/react": "^12.10.1",
+    "electron-is-dev": "^3.0.1",
+    "lucide-react": "^0.468.0",
+    "nanoid": "^5.0.9",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "concurrently": "^9.1.0",
+    "electron": "^33.2.1",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3",
+    "wait-on": "^8.0.1"
+  }
+}
