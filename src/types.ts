@@ -27,6 +27,16 @@ export type AgentNodeData = {
 
 export type AgentFlowNode = import('@xyflow/react').Node<AgentNodeData, 'agent'>;
 
+export type ProjectWorkspace = {
+  id: string;
+  name: string;
+  path: string;
+  color: string;
+  summary: string;
+  nodes: AgentFlowNode[];
+  edges: import('@xyflow/react').Edge[];
+};
+
 export type PlannerSuggestion = {
   agentId: string;
   task: Omit<AgentTask, 'id' | 'createdAt' | 'status'>;

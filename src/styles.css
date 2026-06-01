@@ -187,6 +187,74 @@ select:focus {
   line-height: 1.45;
 }
 
+.project-list {
+  display: grid;
+  gap: 8px;
+}
+
+.project-button {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #2b333c;
+  border-radius: 7px;
+  background: #11161b;
+  color: #dce5ed;
+  text-align: left;
+}
+
+.project-button.is-active {
+  border-color: #72d0a5;
+  background: #14211c;
+}
+
+.project-color {
+  width: 10px;
+  height: 34px;
+  border-radius: 999px;
+}
+
+.project-button strong,
+.project-button small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-button strong {
+  font-size: 13px;
+}
+
+.project-button small {
+  margin-top: 3px;
+  color: #8d99a7;
+  font-size: 11px;
+}
+
+.scope-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.scope-row button {
+  height: 34px;
+  border: 1px solid #303842;
+  border-radius: 7px;
+  background: #101419;
+  color: #aeb9c6;
+}
+
+.scope-row button.is-active {
+  border-color: #72d0a5;
+  background: #16251f;
+  color: #ecfff6;
+}
+
 .workspace {
   position: relative;
   min-width: 0;

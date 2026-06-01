@@ -13,16 +13,18 @@ import {
   type NodeChange,
   type EdgeChange
 } from '@xyflow/react';
-import { Bot, GitBranch, Mic, Plus, SendHorizontal, Sparkles, TerminalSquare } from 'lucide-react';
+import { Bot, FolderKanban, GitBranch, Mic, Plus, SendHorizontal, Sparkles, TerminalSquare } from 'lucide-react';
 import { nanoid } from 'nanoid';
 import { decomposeCommand } from '../lib/planner';
-import type { AgentFlowNode, AgentKind, AgentNodeData, AgentStatus, AgentTask, TaskStatus } from '../types';
+import type { AgentFlowNode, AgentKind, AgentNodeData, AgentStatus, AgentTask, ProjectWorkspace, TaskStatus } from '../types';
 import { AgentNode } from './AgentNode';
 import { AgentActionsContext } from './agent-actions';
 
 const nodeTypes = { agent: AgentNode } satisfies NodeTypes;
 
 const now = () => new Date().toISOString();
+
+const projectColors = ['#72d0a5', '#7dd3fc', '#f5b74a', '#b48cff', '#f36b6b'];
 
 const initialNodes: AgentFlowNode[] = [
   {
@@ -50,6 +52,40 @@ const initialEdges: Edge[] = [
   { id: 'edge-opencode-qa', source: 'agent-opencode', target: 'agent-qa', animated: true }
 ];
 
+const initialProjects: ProjectWorkspace[] = [
+  {
+    id: 'project-agent-q',
+    name: 'Agent Q Canvas',
+    path: 'C:\\GitHub\\agent-q-canvas',
+    color: projectColors[0],
+    summary: 'Main Electron product workspace.',
+    nodes: initialNodes,
+    edges: initialEdges
+  },
+  {
+    id: 'project-sidecar',
+    name: 'Sidecar Prototype',
+    path: '',
+    color: projectColors[1],
+    summary: 'Example second project with its own agent queue.',
+    nodes: [
+      {
+        id: 'sidecar-agent-planner',
+        type: 'agent',
+        position: { x: 120, y: 120 },
+        data: createAgent('Sidecar planner', 'codex', 'codex', 'Break product ideas into implementation tasks')
+      },
+      {
+        id: 'sidecar-agent-builder',
+        type: 'agent',
+        position: { x: 560, y: 170 },
+        data: createAgent('Sidecar builder', 'opencode', 'opencode', 'Implement queued work for this project')
+      }
+    ],
+    edges: [{ id: 'edge-sidecar-plan-build', source: 'sidecar-agent-planner', target: 'sidecar-agent-builder', animated: true }]
+  }
+];
+
 function createAgent(label: string, kind: AgentKind, command: string, summary: string): AgentNodeData {
   return {
     label,
@@ -64,46 +100,39 @@ function createAgent(label: string, kind: AgentKind, command: string, summary: s
 }
 
 export function App() {
-  const [nodes, setNodes] = useState<AgentFlowNode[]>(initialNodes);
-  const [edges, setEdges] = useState<Edge[]>(initialEdges);
+  const [projects, setProjects] = useState<ProjectWorkspace[]>(initialProjects);
+  const [activeProjectId, setActiveProjectId] = useState(initialProjects[0].id);
   const [globalCommand, setGlobalCommand] = useState('');
   const [selectedAgentId, setSelectedAgentId] = useState<string>('auto');
+  const [commandScope, setCommandScope] = useState<'active' | 'all'>('active');
   const [notice, setNotice] = useState('Reference survey loaded: ReactFlow canvas, local terminal sessions, task queues, worktree isolation, command center.');
+
+  const activeProject = projects.find((project) => project.id === activeProjectId) ?? projects[0];
+  const nodes = activeProject.nodes;
+  const edges = activeProject.edges;
 
   useEffect(() => {
     const unsubscribeOutput = window.agentQ?.agent.onOutput((event) => {
-      setNodes((current) =>
-        current.map((node) =>
-          node.id === event.id
-            ? {
-                ...node,
-                data: {
-                  ...node.data,
-                  status: inferStatus(event.text, node.data.status),
-                  transcript: [...node.data.transcript.slice(-80), event.text],
-                  summary: event.text.trim().slice(0, 160) || node.data.summary
-                }
-              }
-            : node
-        )
-      );
+      updateAgentNode(event.id, (node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          status: inferStatus(event.text, node.data.status),
+          transcript: [...node.data.transcript.slice(-80), event.text],
+          summary: event.text.trim().slice(0, 160) || node.data.summary
+        }
+      }));
     });
 
     const unsubscribeExit = window.agentQ?.agent.onExit((event) => {
-      setNodes((current) =>
-        current.map((node) =>
-          node.id === event.id
-            ? {
-                ...node,
-                data: {
-                  ...node.data,
-                  status: event.code === 0 ? 'done' : 'blocked',
-                  summary: event.code === 0 ? 'Process exited cleanly.' : `Process exited with code ${event.code ?? 'unknown'}.`
-                }
-              }
-            : node
-        )
-      );
+      updateAgentNode(event.id, (node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          status: event.code === 0 ? 'done' : 'blocked',
+          summary: event.code === 0 ? 'Process exited cleanly.' : `Process exited with code ${event.code ?? 'unknown'}.`
+        }
+      }));
     });
 
     return () => {
@@ -113,26 +142,98 @@ export function App() {
   }, []);
 
   const agentOptions = useMemo(() => nodes.map((node) => ({ id: node.id, label: node.data.label })), [nodes]);
+  const totalOpenTasks = projects.reduce(
+    (sum, project) => sum + project.nodes.reduce((nodeSum, node) => nodeSum + node.data.tasks.filter((task) => task.status !== 'done').length, 0),
+    0
+  );
+  const totalAttention = projects.reduce(
+    (sum, project) => sum + project.nodes.filter((node) => node.data.status === 'needs-input' || node.data.status === 'blocked').length,
+    0
+  );
 
   const onNodesChange = useCallback(
-    (changes: NodeChange<AgentFlowNode>[]) => setNodes((nds) => applyNodeChanges<AgentFlowNode>(changes, nds)),
-    []
+    (changes: NodeChange<AgentFlowNode>[]) => {
+      setProjects((current) =>
+        current.map((project) =>
+          project.id === activeProjectId ? { ...project, nodes: applyNodeChanges<AgentFlowNode>(changes, project.nodes) } : project
+        )
+      );
+    },
+    [activeProjectId]
   );
-  const onEdgesChange = useCallback((changes: EdgeChange[]) => setEdges((eds) => applyEdgeChanges(changes, eds)), []);
-  const onConnect = useCallback((connection: Connection) => setEdges((eds) => addEdge({ ...connection, animated: true }, eds)), []);
+  const onEdgesChange = useCallback(
+    (changes: EdgeChange[]) => {
+      setProjects((current) =>
+        current.map((project) =>
+          project.id === activeProjectId ? { ...project, edges: applyEdgeChanges(changes, project.edges) } : project
+        )
+      );
+    },
+    [activeProjectId]
+  );
+  const onConnect = useCallback(
+    (connection: Connection) => {
+      setProjects((current) =>
+        current.map((project) =>
+          project.id === activeProjectId ? { ...project, edges: addEdge({ ...connection, animated: true }, project.edges) } : project
+        )
+      );
+    },
+    [activeProjectId]
+  );
 
   const addAgent = () => {
-    const id = `agent-${nanoid(6)}`;
-    setNodes((current) => [
-      ...current,
-      {
-        id,
-        type: 'agent',
-        position: { x: 140 + current.length * 70, y: 260 + current.length * 35 },
-        data: createAgent(`Agent ${current.length + 1}`, 'custom', 'pwsh', 'Idle local agent, ready for a task.')
-      }
-    ]);
+    const id = `${activeProjectId}-agent-${nanoid(6)}`;
+    setProjects((current) =>
+      current.map((project) =>
+        project.id === activeProjectId
+          ? {
+              ...project,
+              nodes: [
+                ...project.nodes,
+                {
+                  id,
+                  type: 'agent',
+                  position: { x: 140 + project.nodes.length * 70, y: 260 + project.nodes.length * 35 },
+                  data: createAgent(`Agent ${project.nodes.length + 1}`, 'custom', 'pwsh', 'Idle local agent, ready for a task.')
+                }
+              ]
+            }
+          : project
+      )
+    );
     setSelectedAgentId(id);
+  };
+
+  const addProject = () => {
+    const id = `project-${nanoid(6)}`;
+    const nextIndex = projects.length + 1;
+    const newProject: ProjectWorkspace = {
+      id,
+      name: `Project ${nextIndex}`,
+      path: '',
+      color: projectColors[projects.length % projectColors.length],
+      summary: 'New product workspace.',
+      nodes: [
+        {
+          id: `${id}-planner`,
+          type: 'agent',
+          position: { x: 160, y: 140 },
+          data: createAgent('Planner', 'codex', 'codex', 'Ready to plan work for this project')
+        },
+        {
+          id: `${id}-builder`,
+          type: 'agent',
+          position: { x: 580, y: 180 },
+          data: createAgent('Builder', 'opencode', 'opencode', 'Ready to implement this project queue')
+        }
+      ],
+      edges: [{ id: `${id}-plan-build`, source: `${id}-planner`, target: `${id}-builder`, animated: true }]
+    };
+
+    setProjects((current) => [...current, newProject]);
+    setActiveProjectId(id);
+    setSelectedAgentId('auto');
   };
 
   const assignGlobalCommand = (source: AgentTask['source'] = 'global') => {
@@ -141,51 +242,64 @@ export function App() {
       return;
     }
 
-    const agentRecords = nodes.map((node) => ({ id: node.id, data: node.data }));
-    const suggestions =
-      selectedAgentId === 'auto'
-        ? decomposeCommand(command, agentRecords)
-        : [
-            {
-              agentId: selectedAgentId,
-              task: { title: command.slice(0, 72), detail: command, source }
-            }
-          ];
+    const targetProjects = commandScope === 'all' ? projects : [activeProject];
+    const suggestionsByProject = targetProjects.map((project) => {
+      const agentRecords = project.nodes.map((node) => ({ id: node.id, data: node.data }));
+      return {
+        projectId: project.id,
+        suggestions:
+          selectedAgentId === 'auto' || commandScope === 'all'
+            ? decomposeCommand(command, agentRecords)
+            : [
+                {
+                  agentId: selectedAgentId,
+                  task: { title: command.slice(0, 72), detail: command, source }
+                }
+              ]
+      };
+    });
+    const suggestionCount = suggestionsByProject.reduce((sum, item) => sum + item.suggestions.length, 0);
 
-    if (suggestions.length === 0) {
+    if (suggestionCount === 0) {
       setNotice('No idle or queued agents are available. Add an agent or clear a queue first.');
       return;
     }
 
-    setNodes((current) =>
-      current.map((node) => {
-        const assigned = suggestions.filter((suggestion) => suggestion.agentId === node.id);
-        if (assigned.length === 0) {
-          return node;
-        }
-
-        const tasks = assigned.map<AgentTask>((suggestion) => ({
-          id: nanoid(),
-          title: suggestion.task.title,
-          detail: suggestion.task.detail,
-          source: suggestion.task.source,
-          status: 'pending',
-          createdAt: now()
-        }));
+    setProjects((current) =>
+      current.map((project) => {
+        const projectSuggestions = suggestionsByProject.find((item) => item.projectId === project.id)?.suggestions ?? [];
+        if (projectSuggestions.length === 0) return project;
 
         return {
-          ...node,
-          data: {
-            ...node.data,
-            status: node.data.status === 'idle' ? 'queued' : node.data.status,
-            tasks: [...node.data.tasks, ...tasks],
-            summary: `${tasks.length} task${tasks.length === 1 ? '' : 's'} queued.`
-          }
+          ...project,
+          nodes: project.nodes.map((node) => {
+            const assigned = projectSuggestions.filter((suggestion) => suggestion.agentId === node.id);
+            if (assigned.length === 0) return node;
+
+            const tasks = assigned.map<AgentTask>((suggestion) => ({
+              id: nanoid(),
+              title: suggestion.task.title,
+              detail: suggestion.task.detail,
+              source: suggestion.task.source,
+              status: 'pending',
+              createdAt: now()
+            }));
+
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                status: node.data.status === 'idle' ? 'queued' : node.data.status,
+                tasks: [...node.data.tasks, ...tasks],
+                summary: `${tasks.length} task${tasks.length === 1 ? '' : 's'} queued.`
+              }
+            };
+          })
         };
       })
     );
 
-    setNotice(`Assigned ${suggestions.length} task${suggestions.length === 1 ? '' : 's'} from the global command.`);
+    setNotice(`Assigned ${suggestionCount} task${suggestionCount === 1 ? '' : 's'} across ${targetProjects.length} project${targetProjects.length === 1 ? '' : 's'}.`);
     setGlobalCommand('');
   };
 
@@ -243,24 +357,27 @@ export function App() {
   };
 
   const setTaskStatus = (agentId: string, taskId: string, status: TaskStatus) => {
-    setNodes((current) =>
-      current.map((node) =>
-        node.id === agentId
-          ? {
-              ...node,
-              data: {
-                ...node.data,
-                activeTaskId: status === 'running' ? taskId : node.data.activeTaskId,
-                tasks: node.data.tasks.map((task) => (task.id === taskId ? { ...task, status } : task))
-              }
-            }
-          : node
-      )
+    updateAgentNode(agentId, (node) => ({
+      ...node,
+      data: {
+        ...node.data,
+        activeTaskId: status === 'running' ? taskId : node.data.activeTaskId,
+        tasks: node.data.tasks.map((task) => (task.id === taskId ? { ...task, status } : task))
+      }
+    }));
+  };
+
+  const updateAgentNode = (agentId: string, updater: (node: AgentFlowNode) => AgentFlowNode) => {
+    setProjects((current) =>
+      current.map((project) => ({
+        ...project,
+        nodes: project.nodes.map((node) => (node.id === agentId ? updater(node) : node))
+      }))
     );
   };
 
   const setNodeStatus = (agentId: string, status: AgentStatus) => {
-    setNodes((current) => current.map((node) => (node.id === agentId ? { ...node, data: { ...node.data, status } } : node)));
+    updateAgentNode(agentId, (node) => ({ ...node, data: { ...node.data, status } }));
   };
 
   const sendDirectTask = (agentId: string, detail: string, source: AgentTask['source']) => {
@@ -269,34 +386,28 @@ export function App() {
       return;
     }
 
-    setNodes((current) =>
-      current.map((node) =>
-        node.id === agentId
-          ? {
-              ...node,
-              data: {
-                ...node.data,
-                status: node.data.status === 'idle' ? 'queued' : node.data.status,
-                tasks: [
-                  ...node.data.tasks,
-                  {
-                    id: nanoid(),
-                    title: text.slice(0, 72),
-                    detail: text,
-                    source,
-                    status: 'pending',
-                    createdAt: now()
-                  }
-                ]
-              }
-            }
-          : node
-      )
-    );
+    updateAgentNode(agentId, (node) => ({
+      ...node,
+      data: {
+        ...node.data,
+        status: node.data.status === 'idle' ? 'queued' : node.data.status,
+        tasks: [
+          ...node.data.tasks,
+          {
+            id: nanoid(),
+            title: text.slice(0, 72),
+            detail: text,
+            source,
+            status: 'pending',
+            createdAt: now()
+          }
+        ]
+      }
+    }));
   };
 
   const updateAgent = (agentId: string, patch: Partial<AgentNodeData>) => {
-    setNodes((current) => current.map((node) => (node.id === agentId ? { ...node, data: { ...node.data, ...patch } } : node)));
+    updateAgentNode(agentId, (node) => ({ ...node, data: { ...node.data, ...patch } }));
   };
 
   return (
@@ -312,6 +423,39 @@ export function App() {
 
         <section className="panel">
           <div className="panel-title">
+            <FolderKanban size={16} />
+            Projects
+          </div>
+          <div className="project-list">
+            {projects.map((project) => {
+              const openTasks = project.nodes.reduce((sum, node) => sum + node.data.tasks.filter((task) => task.status !== 'done').length, 0);
+              return (
+                <button
+                  key={project.id}
+                  type="button"
+                  className={`project-button ${project.id === activeProjectId ? 'is-active' : ''}`}
+                  onClick={() => {
+                    setActiveProjectId(project.id);
+                    setSelectedAgentId('auto');
+                  }}
+                >
+                  <span className="project-color" style={{ background: project.color }} />
+                  <span>
+                    <strong>{project.name}</strong>
+                    <small>{openTasks} open tasks · {project.nodes.length} agents</small>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <button type="button" className="secondary-button" onClick={addProject}>
+            <Plus size={17} />
+            Add project
+          </button>
+        </section>
+
+        <section className="panel">
+          <div className="panel-title">
             <Sparkles size={16} />
             Global command
           </div>
@@ -320,6 +464,14 @@ export function App() {
             onChange={(event) => setGlobalCommand(event.target.value)}
             placeholder="Describe a high-level goal, or assign a direct task to a selected agent."
           />
+          <div className="scope-row">
+            <button type="button" className={commandScope === 'active' ? 'is-active' : ''} onClick={() => setCommandScope('active')}>
+              Active project
+            </button>
+            <button type="button" className={commandScope === 'all' ? 'is-active' : ''} onClick={() => setCommandScope('all')}>
+              All projects
+            </button>
+          </div>
           <div className="command-row">
             <select value={selectedAgentId} onChange={(event) => setSelectedAgentId(event.target.value)}>
               <option value="auto">Auto assign</option>
@@ -342,14 +494,14 @@ export function App() {
         <section className="panel compact">
           <div className="metric">
             <span>{nodes.length}</span>
-            agents
+            active agents
           </div>
           <div className="metric">
-            <span>{nodes.reduce((sum, node) => sum + node.data.tasks.filter((task) => task.status !== 'done').length, 0)}</span>
-            open tasks
+            <span>{totalOpenTasks}</span>
+            all open
           </div>
           <div className="metric">
-            <span>{nodes.filter((node) => node.data.status === 'needs-input' || node.data.status === 'blocked').length}</span>
+            <span>{totalAttention}</span>
             need attention
           </div>
         </section>
@@ -377,7 +529,7 @@ export function App() {
         <div className="topbar">
           <div>
             <strong>Collaboration map</strong>
-            <span>{notice}</span>
+            <span>{activeProject.name}: {activeProject.summary} {notice}</span>
           </div>
           <div className="topbar-pill">
             <GitBranch size={15} />
