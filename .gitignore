@@ -5,6 +5,8 @@ release/
 .vite/
 
 references/
+social-drafts/
+screenshots/
 
 .env
 .env.*
